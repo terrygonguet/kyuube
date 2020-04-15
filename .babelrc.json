@@ -1,0 +1,8 @@
+{
+	"plugins": [
+		[
+			"snowpack/assets/babel-plugin.js",
+			{ "importMap": "../dist/web_modules/import-map.json" }
+		]
+	]
+}
