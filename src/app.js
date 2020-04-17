@@ -1,53 +1,104 @@
 import {
 	BoxGeometry,
 	Color,
-	DoubleSide,
+	MathUtils,
 	Mesh,
 	MeshBasicMaterial,
 	PerspectiveCamera,
 	PlaneGeometry,
 	Scene,
-	WebGLRenderer,
 	Vector3,
-	BackSide,
-	Quaternion,
-	MathUtils,
+	WebGLRenderer,
+	Geometry,
+	Face3,
+	Vector2,
+	Raycaster,
+	Euler,
+	CircleGeometry,
+	LineBasicMaterial,
+	Line,
+	EdgesGeometry,
 } from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 
 const scene = new Scene()
 scene.background = new Color("#AAA")
 const camera = new PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000)
-
 const renderer = new WebGLRenderer({ antialias: true })
 renderer.setSize(innerWidth, innerHeight)
-
 document.body.appendChild(renderer.domElement)
+
+const raycaster = new Raycaster()
+renderer.domElement.addEventListener(
+	"contextmenu",
+	handleMouse.bind(null, "rclick"),
+)
+renderer.domElement.addEventListener("click", handleMouse.bind(null, "click"))
+
+/**
+ * @param {"click"|"move"|"rclick"} type
+ * @param {MouseEvent} e
+ */
+function handleMouse(type, e) {
+	const mouse = new Vector2(
+		(e.clientX / innerWidth) * 2 - 1,
+		-(e.clientY / innerHeight) * 2 + 1,
+	)
+	raycaster.setFromCamera(mouse, camera)
+	const hits = raycaster.intersectObjects(scene.children)
+	if (type != "move") {
+		hits.forEach(h =>
+			h.object.dispatchEvent({
+				type: "click",
+				rightClick: type == "rclick",
+			}),
+		)
+	}
+}
+
+// ----------------------- Shared Geometries & materials -----------------------
 const planeGeometry = new PlaneGeometry(0.93, 0.93)
 const cubeGeometry = new BoxGeometry()
+const arrowGeometry = new Geometry().setFromPoints([
+	new Vector3(0, 0, 0.3),
+	new Vector3(0.15, 0, 0),
+	new Vector3(-0.15, 0, 0),
+])
+arrowGeometry.faces.push(new Face3(0, 1, 2))
+arrowGeometry.computeBoundingSphere()
+const circleGeometry = new CircleGeometry(0.15, 32)
+const circleEdgesGeometry = new EdgesGeometry(circleGeometry)
+const arrowEdgesGeometry = new EdgesGeometry(arrowGeometry)
 const materials = {
 	black: new MeshBasicMaterial({
 		color: "black",
 	}),
 	white: new MeshBasicMaterial({
-		color: "white",
+		color: "#C45AEC",
 	}),
 	blue: new MeshBasicMaterial({
-		color: "blue",
+		color: "#82CAFA",
 	}),
 	red: new MeshBasicMaterial({
-		color: "red",
+		color: "#FF7F50",
 	}),
 	yellow: new MeshBasicMaterial({
-		color: "yellow",
+		color: "#FFE5B4",
 	}),
 	pink: new MeshBasicMaterial({
 		color: "pink",
 	}),
 	green: new MeshBasicMaterial({
-		color: "green",
+		color: "#5EFB6E",
 	}),
+	controls: new MeshBasicMaterial({
+		color: "white",
+		transparent: true,
+	}),
+	edges: new LineBasicMaterial({ color: "black", transparent: true }),
 }
+
+// ----------------------- Faces -----------------------
 /** @type {Mesh[][][]} */
 const faces = [[[], [], []], [[], [], []], [[], [], []]]
 
@@ -111,7 +162,598 @@ for (let x = -1; x <= 1; x++) {
 	}
 }
 
-camera.position.set(5, 4, 5)
+// ----------------------- Controls -----------------------
+const PIOT = Math.PI / 2,
+	PI = Math.PI
+
+/**
+ * @typedef {Object} UIElementDefinition
+ * @property {"arrow"|"circle"} type
+ * @property {Vector3} position
+ * @property {Euler} rotation
+ * @property {Input} input
+ */
+
+/** @type {UIElementDefinition[]} */
+let uiElementsDefinitions = [
+	{
+		// red top
+		type: "arrow",
+		position: new Vector3(1.6, 1.15, 0),
+		rotation: new Euler(-PIOT, -PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "*", clockwise: false },
+	},
+	{
+		// red bottom
+		type: "arrow",
+		position: new Vector3(1.6, -1.15, 0),
+		rotation: new Euler(PIOT, PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "*", clockwise: true },
+	},
+	{
+		// red left
+		type: "arrow",
+		position: new Vector3(1.6, 0, 1.15),
+		rotation: new Euler(0, 0, -PIOT),
+		input: { axis: "y", end: "*", clockwise: true },
+	},
+	{
+		//red right
+		type: "arrow",
+		position: new Vector3(1.6, 0, -1.15),
+		rotation: new Euler(0, PI, PIOT),
+		input: { axis: "y", end: "*", clockwise: false },
+	},
+	{
+		// red center
+		type: "circle",
+		position: new Vector3(1.6, 0, 0),
+		rotation: new Euler(0, PIOT, 0),
+		input: { axis: "x", end: "+", clockwise: true },
+	},
+	{
+		// red top left up
+		type: "arrow",
+		position: new Vector3(1.6, 1.15, 1),
+		rotation: new Euler(-PIOT, -PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "+", clockwise: false },
+	},
+	{
+		// red top left left
+		type: "arrow",
+		position: new Vector3(1.6, 1, 1.15),
+		rotation: new Euler(0, 0, -PIOT),
+		input: { axis: "y", end: "+", clockwise: true },
+	},
+	{
+		// red top right up
+		type: "arrow",
+		position: new Vector3(1.6, 1.15, -1),
+		rotation: new Euler(-PIOT, -PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "-", clockwise: false },
+	},
+	{
+		// red top right right
+		type: "arrow",
+		position: new Vector3(1.6, 1, -1.15),
+		rotation: new Euler(0, PI, PIOT),
+		input: { axis: "y", end: "+", clockwise: false },
+	},
+	{
+		// red bottom left down
+		type: "arrow",
+		position: new Vector3(1.6, -1.15, 1),
+		rotation: new Euler(PIOT, PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "+", clockwise: true },
+	},
+	{
+		// red bottom left left
+		type: "arrow",
+		position: new Vector3(1.6, -1, 1.15),
+		rotation: new Euler(0, 0, -PIOT),
+		input: { axis: "y", end: "-", clockwise: true },
+	},
+	{
+		// red bottom right down
+		type: "arrow",
+		position: new Vector3(1.6, -1.15, -1),
+		rotation: new Euler(PIOT, PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "-", clockwise: true },
+	},
+	{
+		// red bottom right right
+		type: "arrow",
+		position: new Vector3(1.6, -1, -1.15),
+		rotation: new Euler(0, PI, PIOT),
+		input: { axis: "y", end: "-", clockwise: false },
+	},
+
+	{
+		// yellow top
+		type: "arrow",
+		position: new Vector3(-1.6, 1.15, 0),
+		rotation: new Euler(-PIOT, PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "*", clockwise: true },
+	},
+	{
+		// yellow bottom
+		type: "arrow",
+		position: new Vector3(-1.6, -1.15, 0),
+		rotation: new Euler(PIOT, -PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "*", clockwise: false },
+	},
+	{
+		// yellow left
+		type: "arrow",
+		position: new Vector3(-1.6, 0, 1.15),
+		rotation: new Euler(0, 0, PIOT),
+		input: { axis: "y", end: "*", clockwise: false },
+	},
+	{
+		//yellow right
+		type: "arrow",
+		position: new Vector3(-1.6, 0, -1.15),
+		rotation: new Euler(0, PI, -PIOT),
+		input: { axis: "y", end: "*", clockwise: true },
+	},
+	{
+		// yellow center
+		type: "circle",
+		position: new Vector3(-1.6, 0, 0),
+		rotation: new Euler(0, -PIOT, 0),
+		input: { axis: "x", end: "-", clockwise: false },
+	},
+	{
+		// yellow top left up
+		type: "arrow",
+		position: new Vector3(-1.6, 1.15, -1),
+		rotation: new Euler(-PIOT, PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "-", clockwise: true },
+	},
+	{
+		// yellow top left left
+		type: "arrow",
+		position: new Vector3(-1.6, 1, -1.15),
+		rotation: new Euler(0, PI, -PIOT),
+		input: { axis: "y", end: "+", clockwise: true },
+	},
+	{
+		// yellow top right up
+		type: "arrow",
+		position: new Vector3(-1.6, 1.15, 1),
+		rotation: new Euler(-PIOT, PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "+", clockwise: true },
+	},
+	{
+		// yellow top right right
+		type: "arrow",
+		position: new Vector3(-1.6, 1, 1.15),
+		rotation: new Euler(0, 0, PIOT),
+		input: { axis: "y", end: "+", clockwise: false },
+	},
+	{
+		// yellow bottom left down
+		type: "arrow",
+		position: new Vector3(-1.6, -1.15, -1),
+		rotation: new Euler(PIOT, -PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "-", clockwise: false },
+	},
+	{
+		// yellow bottom left left
+		type: "arrow",
+		position: new Vector3(-1.6, -1, -1.15),
+		rotation: new Euler(0, PI, -PIOT),
+		input: { axis: "y", end: "-", clockwise: true },
+	},
+	{
+		// yellow bottom right down
+		type: "arrow",
+		position: new Vector3(-1.6, -1.15, 1),
+		rotation: new Euler(PIOT, -PIOT, 0, "YXZ"),
+		input: { axis: "z", end: "+", clockwise: false },
+	},
+	{
+		// yellow bottom right right
+		type: "arrow",
+		position: new Vector3(-1.6, -1, 1.15),
+		rotation: new Euler(0, 0, PIOT),
+		input: { axis: "y", end: "-", clockwise: false },
+	},
+
+	{
+		// pink top
+		type: "arrow",
+		position: new Vector3(1.15, 1.6, 0),
+		rotation: new Euler(0, PIOT, 0),
+		input: { axis: "z", end: "*", clockwise: true },
+	},
+	{
+		// pink bottom
+		type: "arrow",
+		position: new Vector3(-1.15, 1.6, 0),
+		rotation: new Euler(0, -PIOT, 0),
+		input: { axis: "z", end: "*", clockwise: false },
+	},
+	{
+		// pink right
+		type: "arrow",
+		position: new Vector3(0, 1.6, 1.15),
+		rotation: new Euler(),
+		input: { axis: "x", end: "*", clockwise: false },
+	},
+	{
+		//pink left
+		type: "arrow",
+		position: new Vector3(0, 1.6, -1.15),
+		rotation: new Euler(0, PI, 0),
+		input: { axis: "x", end: "*", clockwise: true },
+	},
+	{
+		// pink center
+		type: "circle",
+		position: new Vector3(0, 1.6, 0),
+		rotation: new Euler(-PIOT),
+		input: { axis: "y", end: "+", clockwise: true },
+	},
+	{
+		// pink top left up
+		type: "arrow",
+		position: new Vector3(1.15, 1.6, -1),
+		rotation: new Euler(0, PIOT, 0),
+		input: { axis: "z", end: "-", clockwise: true },
+	},
+	{
+		// pink top left left
+		type: "arrow",
+		position: new Vector3(1, 1.6, -1.15),
+		rotation: new Euler(0, PI, 0),
+		input: { axis: "x", end: "+", clockwise: true },
+	},
+	{
+		// pink top right up
+		type: "arrow",
+		position: new Vector3(1.15, 1.6, 1),
+		rotation: new Euler(0, PIOT, 0),
+		input: { axis: "z", end: "+", clockwise: true },
+	},
+	{
+		// pink top right right
+		type: "arrow",
+		position: new Vector3(1, 1.6, 1.15),
+		rotation: new Euler(),
+		input: { axis: "x", end: "+", clockwise: false },
+	},
+	{
+		// pink bottom left down
+		type: "arrow",
+		position: new Vector3(-1, 1.6, -1.15),
+		rotation: new Euler(0, PI, 0),
+		input: { axis: "x", end: "-", clockwise: true },
+	},
+	{
+		// pink bottom left left
+		type: "arrow",
+		position: new Vector3(-1.15, 1.6, -1),
+		rotation: new Euler(0, -PIOT, 0),
+		input: { axis: "z", end: "-", clockwise: false },
+	},
+	{
+		// pink bottom right down
+		type: "arrow",
+		position: new Vector3(-1.15, 1.6, 1),
+		rotation: new Euler(0, -PIOT, 0),
+		input: { axis: "z", end: "+", clockwise: false },
+	},
+	{
+		// pink bottom right right
+		type: "arrow",
+		position: new Vector3(-1, 1.6, 1.15),
+		rotation: new Euler(),
+		input: { axis: "x", end: "-", clockwise: false },
+	},
+
+	{
+		// green top
+		type: "arrow",
+		position: new Vector3(1.15, -1.6, 0),
+		rotation: new Euler(PI, PIOT, 0),
+		input: { axis: "z", end: "*", clockwise: false },
+	},
+	{
+		// green bottom
+		type: "arrow",
+		position: new Vector3(-1.15, -1.6, 0),
+		rotation: new Euler(PI, -PIOT, 0),
+		input: { axis: "z", end: "*", clockwise: true },
+	},
+	{
+		// green right
+		type: "arrow",
+		position: new Vector3(0, -1.6, 1.15),
+		rotation: new Euler(0, 0, PI),
+		input: { axis: "x", end: "*", clockwise: true },
+	},
+	{
+		//green left
+		type: "arrow",
+		position: new Vector3(0, -1.6, -1.15),
+		rotation: new Euler(0, PI, PI),
+		input: { axis: "x", end: "*", clockwise: false },
+	},
+	{
+		// green center
+		type: "circle",
+		position: new Vector3(0, -1.6, 0),
+		rotation: new Euler(PIOT),
+		input: { axis: "y", end: "-", clockwise: false },
+	},
+	{
+		// green top left up
+		type: "arrow",
+		position: new Vector3(1.15, -1.6, -1),
+		rotation: new Euler(0, PIOT, PI),
+		input: { axis: "z", end: "-", clockwise: false },
+	},
+	{
+		// green top left left
+		type: "arrow",
+		position: new Vector3(1, -1.6, -1.15),
+		rotation: new Euler(0, PI, PI),
+		input: { axis: "x", end: "+", clockwise: false },
+	},
+	{
+		// green top right up
+		type: "arrow",
+		position: new Vector3(1.15, -1.6, 1),
+		rotation: new Euler(0, PIOT, PI),
+		input: { axis: "z", end: "+", clockwise: false },
+	},
+	{
+		// green top right right
+		type: "arrow",
+		position: new Vector3(1, -1.6, 1.15),
+		rotation: new Euler(0, 0, PI),
+		input: { axis: "x", end: "+", clockwise: true },
+	},
+	{
+		// green bottom left down
+		type: "arrow",
+		position: new Vector3(-1, -1.6, -1.15),
+		rotation: new Euler(0, PI, PI),
+		input: { axis: "x", end: "-", clockwise: false },
+	},
+	{
+		// green bottom left left
+		type: "arrow",
+		position: new Vector3(-1.15, -1.6, -1),
+		rotation: new Euler(0, -PIOT, PI),
+		input: { axis: "z", end: "-", clockwise: true },
+	},
+	{
+		// green bottom right down
+		type: "arrow",
+		position: new Vector3(-1.15, -1.6, 1),
+		rotation: new Euler(0, -PIOT, PI),
+		input: { axis: "z", end: "+", clockwise: true },
+	},
+	{
+		// green bottom right right
+		type: "arrow",
+		position: new Vector3(-1, -1.6, 1.15),
+		rotation: new Euler(0, 0, PI),
+		input: { axis: "x", end: "-", clockwise: true },
+	},
+
+	{
+		// blue top
+		type: "arrow",
+		position: new Vector3(0, 1.15, 1.6),
+		rotation: new Euler(-PIOT, 0, PI),
+		input: { axis: "x", end: "*", clockwise: true },
+	},
+	{
+		// blue bottom
+		type: "arrow",
+		position: new Vector3(0, -1.15, 1.6),
+		rotation: new Euler(PIOT, 0, 0),
+		input: { axis: "x", end: "*", clockwise: false },
+	},
+	{
+		// blue right
+		type: "arrow",
+		position: new Vector3(1.15, 0, 1.6),
+		rotation: new Euler(0, PIOT, PIOT),
+		input: { axis: "y", end: "*", clockwise: false },
+	},
+	{
+		//blue left
+		type: "arrow",
+		position: new Vector3(-1.15, 0, 1.6),
+		rotation: new Euler(0, -PIOT, -PIOT),
+		input: { axis: "y", end: "*", clockwise: true },
+	},
+	{
+		// blue center
+		type: "circle",
+		position: new Vector3(0, 0, 1.6),
+		rotation: new Euler(),
+		input: { axis: "z", end: "+", clockwise: true },
+	},
+	{
+		// blue top left up
+		type: "arrow",
+		position: new Vector3(-1, 1.15, 1.6),
+		rotation: new Euler(PIOT, PI, 0),
+		input: { axis: "x", end: "-", clockwise: true },
+	},
+	{
+		// blue top left left
+		type: "arrow",
+		position: new Vector3(-1.15, 1, 1.6),
+		rotation: new Euler(PIOT, -PIOT, 0),
+		input: { axis: "y", end: "+", clockwise: true },
+	},
+	{
+		// blue top right up
+		type: "arrow",
+		position: new Vector3(1, 1.15, 1.6),
+		rotation: new Euler(PIOT, -PI, 0),
+		input: { axis: "x", end: "+", clockwise: true },
+	},
+	{
+		// blue top right right
+		type: "arrow",
+		position: new Vector3(1.15, 1, 1.6),
+		rotation: new Euler(PIOT, PIOT, 0),
+		input: { axis: "y", end: "+", clockwise: false },
+	},
+	{
+		// blue bottom left down
+		type: "arrow",
+		position: new Vector3(-1, -1.15, 1.6),
+		rotation: new Euler(PIOT, 0, 0),
+		input: { axis: "x", end: "-", clockwise: false },
+	},
+	{
+		// blue bottom left left
+		type: "arrow",
+		position: new Vector3(-1.15, -1, 1.6),
+		rotation: new Euler(PIOT, -PIOT, 0),
+		input: { axis: "y", end: "-", clockwise: true },
+	},
+	{
+		// blue bottom right down
+		type: "arrow",
+		position: new Vector3(1, -1.15, 1.6),
+		rotation: new Euler(PIOT, 0, 0),
+		input: { axis: "x", end: "+", clockwise: false },
+	},
+	{
+		// blue bottom right right
+		type: "arrow",
+		position: new Vector3(1.15, -1, 1.6),
+		rotation: new Euler(PIOT, PIOT, 0),
+		input: { axis: "y", end: "-", clockwise: false },
+	},
+
+	{
+		// white top
+		type: "arrow",
+		position: new Vector3(0, 1.15, -1.6),
+		rotation: new Euler(-PIOT, 0, 0),
+		input: { axis: "x", end: "*", clockwise: false },
+	},
+	{
+		// white bottom
+		type: "arrow",
+		position: new Vector3(0, -1.15, -1.6),
+		rotation: new Euler(PIOT, 0, PI),
+		input: { axis: "x", end: "*", clockwise: true },
+	},
+	{
+		// white right
+		type: "arrow",
+		position: new Vector3(1.15, 0, -1.6),
+		rotation: new Euler(0, PIOT, -PIOT),
+		input: { axis: "y", end: "*", clockwise: true },
+	},
+	{
+		//white left
+		type: "arrow",
+		position: new Vector3(-1.15, 0, -1.6),
+		rotation: new Euler(0, -PIOT, PIOT),
+		input: { axis: "y", end: "*", clockwise: false },
+	},
+	{
+		// white center
+		type: "circle",
+		position: new Vector3(0, 0, -1.6),
+		rotation: new Euler(0, PI, 0),
+		input: { axis: "z", end: "-", clockwise: false },
+	},
+	{
+		// white top right up
+		type: "arrow",
+		position: new Vector3(-1, 1.15, -1.6),
+		rotation: new Euler(PIOT, PI, PI),
+		input: { axis: "x", end: "-", clockwise: false },
+	},
+	{
+		// white top right right
+		type: "arrow",
+		position: new Vector3(-1.15, 1, -1.6),
+		rotation: new Euler(PIOT, -PIOT, PI),
+		input: { axis: "y", end: "+", clockwise: false },
+	},
+	{
+		// white top left up
+		type: "arrow",
+		position: new Vector3(1, 1.15, -1.6),
+		rotation: new Euler(PIOT, -PI, PI),
+		input: { axis: "x", end: "+", clockwise: false },
+	},
+	{
+		// white top left left
+		type: "arrow",
+		position: new Vector3(1.15, 1, -1.6),
+		rotation: new Euler(PIOT, PIOT, PI),
+		input: { axis: "y", end: "+", clockwise: true },
+	},
+	{
+		// white bottom right down
+		type: "arrow",
+		position: new Vector3(-1, -1.15, -1.6),
+		rotation: new Euler(PIOT, 0, PI),
+		input: { axis: "x", end: "-", clockwise: true },
+	},
+	{
+		// white bottom right right
+		type: "arrow",
+		position: new Vector3(-1.15, -1, -1.6),
+		rotation: new Euler(PIOT, -PIOT, PI),
+		input: { axis: "y", end: "-", clockwise: false },
+	},
+	{
+		// white bottom left down
+		type: "arrow",
+		position: new Vector3(1, -1.15, -1.6),
+		rotation: new Euler(PIOT, 0, PI),
+		input: { axis: "x", end: "+", clockwise: true },
+	},
+	{
+		// white bottom left left
+		type: "arrow",
+		position: new Vector3(1.15, -1, -1.6),
+		rotation: new Euler(PIOT, PIOT, PI),
+		input: { axis: "y", end: "-", clockwise: true },
+	},
+]
+let uiElements = uiElementsDefinitions.map(
+	({ position, rotation, input, type }) => {
+		const element = new Mesh(
+			type == "arrow" ? arrowGeometry : circleGeometry,
+			materials.controls,
+		)
+		const edges = new Line(
+			type == "arrow" ? arrowEdgesGeometry : circleEdgesGeometry,
+			materials.edges,
+		)
+		element.position.copy(position)
+		element.rotation.copy(rotation)
+		element.addEventListener("click", e =>
+			inputQueue.push({
+				...input,
+				clockwise: e.rightClick ? !input.clockwise : input.clockwise,
+			}),
+		)
+		element.name = "UI " + type
+		element.add(edges)
+		scene.add(element)
+		return element
+	},
+)
+
+camera.position.set(0, 0, -5)
 camera.lookAt(0, 0, 0)
 
 const controls = new OrbitControls(camera, renderer.domElement)
@@ -141,6 +783,7 @@ let rotationData = {
 const ANIMATION_DURATION = 150
 /** @type {Input[]} */
 const inputQueue = []
+let nbClicks = 0
 
 /**
  * @param {number} now
@@ -162,6 +805,7 @@ function raf(now) {
 		let inpt = inputQueue.shift()
 		rotateAround(inpt.axis, inpt.end, inpt.clockwise)
 	}
+
 	renderer.render(scene, camera)
 	requestAnimationFrame(raf)
 }
@@ -208,17 +852,19 @@ function rotateAround(axis, end, clockwise = true) {
 			}
 			break
 	}
-	const one = new Vector3(1, 1, 1)
+	const one = new Vector3(1, 1, 1),
+		angle = (clockwise ? -1 : 1) * (Math.PI / 2)
 	positions = positions.filter((_, i) => !!toRotate[i])
 	toRotate = toRotate.filter(Boolean)
-	positions.forEach(p =>
-		p
-			.sub(one)
-			.applyAxisAngle(axisVector, (clockwise ? -1 : 1) * (Math.PI / 2))
-			.round()
-			.add(one),
-	)
-	positions.forEach((p, i) => (faces[p.x][p.y][p.z] = toRotate[i]))
+	positions
+		.map(p =>
+			p
+				.sub(one)
+				.applyAxisAngle(axisVector, angle)
+				.round()
+				.add(one),
+		)
+		.forEach((p, i) => (faces[p.x][p.y][p.z] = toRotate[i]))
 	rotationData = {
 		axis: axisVector,
 		center: axisVector.clone().multiplyScalar(0.33 * Math.sign(offset - 1)),
@@ -227,6 +873,8 @@ function rotateAround(axis, end, clockwise = true) {
 		time: ANIMATION_DURATION,
 		start: performance.now(),
 	}
+	materials.edges.opacity = (30 - nbClicks++) / 30
+	materials.controls.opacity = MathUtils.clamp((30 - nbClicks++) / 30, 0.3, 1)
 }
 
 window.addEventListener("keydown", e => {
