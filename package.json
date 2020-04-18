@@ -10,7 +10,7 @@
 		"build": "run-s build:*",
 		"dev:babel": "babel src/ --out-dir dist/ --watch",
 		"dev:serve": "servor dist index.html 3000 --reload",
-		"dev": "run-p -r dev:*"
+		"dev": "npm run snowpack && run-p -r dev:*"
 	},
 	"repository": {
 		"type": "git",

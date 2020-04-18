@@ -1,3 +1,33 @@
 body {
 	min-height: 100vh;
 }
+
+#controls {
+	position: absolute;
+	bottom: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	width: 100%;
+	padding-bottom: 10vh;
+	text-align: center;
+}
+
+#btnScramble {
+	padding: 0.5rem 1rem;
+	border: none;
+	border-radius: 0.5rem;
+	font-weight: 600;
+	color: white;
+	background-color: #c45aec;
+	cursor: pointer;
+}
+
+#btnScramble:hover {
+	filter: brightness(110%);
+}
+
+#btnScramble:active {
+	filter: brightness(80%);
+}

@@ -35,11 +35,29 @@ renderer.domElement.addEventListener(
 )
 renderer.domElement.addEventListener("click", handleMouse.bind(null, "click"))
 
+/** @type {HTMLButtonElement} */
+const btnScramble = document.querySelector("#btnScramble")
+btnScramble.addEventListener("click", e => {
+	if (inputQueue.length) return
+	isScrambling = true
+	const moves = MathUtils.randInt(30, 60)
+	const axes = "xyz",
+		ends = "+*-"
+	for (let i = 0; i < moves; i++) {
+		inputQueue.push({
+			axis: axes[MathUtils.randInt(0, 2)],
+			end: ends[MathUtils.randInt(0, 2)],
+			clockwise: Math.random() < 0.5,
+		})
+	}
+})
+
 /**
  * @param {"click"|"move"|"rclick"} type
  * @param {MouseEvent} e
  */
 function handleMouse(type, e) {
+	if (isScrambling) return
 	const mouse = new Vector2(
 		(e.clientX / innerWidth) * 2 - 1,
 		-(e.clientY / innerHeight) * 2 + 1,
@@ -753,7 +771,7 @@ let uiElements = uiElementsDefinitions.map(
 	},
 )
 
-camera.position.set(0, 0, -5)
+camera.position.set(4, 5, 4)
 camera.lookAt(0, 0, 0)
 
 const controls = new OrbitControls(camera, renderer.domElement)
@@ -784,6 +802,7 @@ const ANIMATION_DURATION = 150
 /** @type {Input[]} */
 const inputQueue = []
 let nbClicks = 0
+let isScrambling = false
 
 /**
  * @param {number} now
@@ -804,6 +823,7 @@ function raf(now) {
 	} else if (inputQueue.length) {
 		let inpt = inputQueue.shift()
 		rotateAround(inpt.axis, inpt.end, inpt.clockwise)
+		if (!inputQueue.length) isScrambling = false
 	}
 
 	renderer.render(scene, camera)
@@ -873,8 +893,14 @@ function rotateAround(axis, end, clockwise = true) {
 		time: ANIMATION_DURATION,
 		start: performance.now(),
 	}
-	materials.edges.opacity = (30 - nbClicks++) / 30
-	materials.controls.opacity = MathUtils.clamp((30 - nbClicks++) / 30, 0.3, 1)
+	if (!isScrambling) {
+		materials.edges.opacity = (30 - nbClicks++) / 30
+		materials.controls.opacity = MathUtils.clamp(
+			(30 - nbClicks++) / 30,
+			0.3,
+			1,
+		)
+	}
 }
 
 window.addEventListener("keydown", e => {
